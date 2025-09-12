@@ -3,6 +3,7 @@ pandas
 matplotlib
 seaborn
 nltk
+numpy
 transformers
 torch
 scipy

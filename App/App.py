@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import nltk
+import numpy as np
 from nltk.sentiment import SentimentIntensityAnalyzer
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 from scipy.special import softmax
@@ -64,23 +65,45 @@ if user_text:
     output = model(**encoded_text)
     scores = softmax(output[0][0].detach().numpy())
     roberta_scores = {
-        "roberta_neg": float(scores[0]),
-        "roberta_neu": float(scores[1]),
-        "roberta_pos": float(scores[2]),
+        "Negative": float(scores[0]),
+        "Neutral": float(scores[1]),
+        "Positive": float(scores[2]),
     }
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.write("### VADER Scores")
-        st.json(vader_scores)
-    with col2:
-        st.write("### RoBERTa Scores")
-        st.json(roberta_scores)
+# Compute entropy of scores
+entropy = -sum(p * np.log(p + 1e-10) for p in scores)
 
-    # HuggingFace pipeline (simple label)
-    st.write("### HuggingFace Pipeline Prediction")
-    st.json(sent_pipeline(user_text))
+# Threshold-based labeling logic
+if  (0.72 > entropy >= 0.2832448): 
+    final_label = "Neutral"
 
+elif  (1 > entropy >= 0.24): 
+    final_label = "Irrelevant"
+    
+else:
+    max_label = max(roberta_scores, key=roberta_scores.get)
+    final_label = max_label
+
+col1, col2 = st.columns(2)
+with col1:
+    st.write("### VADER Scores")
+    st.json(vader_scores)
+with col2:
+    st.write("### Roberta Scores")
+    st.json(roberta_scores)
+
+# HuggingFace pipeline result (default)
+pipeline_result = sent_pipeline(user_text)[0]  # [{'label': ..., 'score': ...}]
+st.write("### HuggingFace Pipeline (Default Label)")
+st.json(pipeline_result)
+
+# Display final sentiment label
+st.write("### Final Sentiment Prediction (with Neutral & Irrelevant)")
+st.json({
+    "Final Label": final_label,
+    "Entropy": entropy,
+    "Scores": roberta_scores
+})
 # -------------------------------
 # Footer
 # -------------------------------
