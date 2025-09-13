@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import nltk
 import numpy as np
+from tqdm import tqdm
 from nltk.sentiment import SentimentIntensityAnalyzer
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
 from scipy.special import softmax
@@ -33,22 +34,65 @@ def load_models():
 sia, tokenizer, model, sent_pipeline = load_models()
 
 # -------------------------------
-# Upload dataset
+# Upload Dataset
 # -------------------------------
-st.sidebar.header("twitter_training.csv")
-uploaded_file = st.sidebar.file_uploader("twitter_training.csv", type=["csv"])
+st.sidebar.header("Upload Dataset")
+uploaded_file = st.sidebar.file_uploader("Upload twitter_training.csv", type=["csv"])
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file, encoding_errors="replace")
     st.write("### Dataset Preview", df.head())
 
-    # Plot sentiment distribution
     if "Unnamed: 1" in df.columns:
         counts = df["Unnamed: 1"].value_counts()
         fig, ax = plt.subplots()
         sns.barplot(x=counts.index, y=counts.values, ax=ax, palette="Set2")
-        ax.set_title("Sentiment Distribution")
+        ax.set_title("Sentiment Distribution in Dataset")
         st.pyplot(fig)
+
+    # Define Roberta polarity scoring function
+    def polarity_scores_roberta(text):
+        encoded_text = tokenizer(text, return_tensors="pt")
+        output = model(**encoded_text)
+        scores = softmax(output[0][0].detach().numpy())
+        return {
+            "roberta_neg": float(scores[0]),
+            "roberta_neu": float(scores[1]),
+            "roberta_pos": float(scores[2]),
+        }
+
+    # Compute VADER + RoBERTa scores for dataset
+    res = {}
+    for i, row in tqdm(df.head(1000).iterrows(), total=1000):
+        try:
+            text = row['Text']
+            label = row['Unnamed: 1']
+            if pd.notna(text):
+                vader_result = sia.polarity_scores(text)
+                vader_result_rename = {
+                    f"vader_{key}": value for key, value in vader_result.items()
+                }
+                roberta_result = polarity_scores_roberta(text)
+                combined = {**vader_result_rename, **roberta_result}
+                res[i] = {**combined, "label": label, "Text": text}
+            else:
+                print(f"Skipping row with None text at index {i}")
+        except Exception as e:
+            print(f"Error processing row {i}: {e}")
+
+    # Build results DataFrame
+    results_df = pd.DataFrame(res).T.reset_index(drop=True)
+
+    # Plot comparison graph
+    sns.pairplot(
+        data=results_df,
+        vars=['vader_neg', 'vader_neu', 'vader_pos',
+              'roberta_neg', 'roberta_neu', 'roberta_pos'],
+        hue='label',
+        palette='tab10'
+    )
+    st.pyplot(plt)
+
 
 # -------------------------------
 # Text input for analysis

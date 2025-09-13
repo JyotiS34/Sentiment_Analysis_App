@@ -4,6 +4,7 @@ matplotlib
 seaborn
 nltk
 numpy
+tqdm
 transformers
 torch
 scipy
