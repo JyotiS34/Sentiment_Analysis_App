@@ -89,9 +89,19 @@ if uploaded_file:
         vars=['vader_neg', 'vader_neu', 'vader_pos',
               'roberta_neg', 'roberta_neu', 'roberta_pos'],
         hue='label',
-        palette='tab10'
+        palette='tab10',
+        diag_kind='kde'
     )
-    st.pyplot(plt)
+    st.pyplot(plt.gcf())
+    plt.clf()
+
+    # Grouped statistics by label
+    summary_stats = results_df.groupby('label')[['vader_neg', 'vader_neu', 'vader_pos', 
+                                     'roberta_neg', 'roberta_neu', 'roberta_pos']].describe()
+
+    # Display in Streamlit
+    st.write("### Summary Statistics by Label")
+    st.dataframe(summary_stats)
 
 
 # -------------------------------
